@@ -1,0 +1,79 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.buildlog/
+.history
+.svn/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# VS Code - keep settings but ignore launch configs with secrets
+.vscode/launch.json
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+/build/
+.metadata
+
+# Android build artifacts
+/android/build/
+/android/.gradle/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# Firebase - sensitive config files
+**/android/app/google-services.json
+**/ios/Runner/GoogleService-Info.plist
+.firebase/
+.firebaserc
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Generated code files (run build_runner to regenerate)
+*.g.dart
+*.freezed.dart
+*.config.dart
+*.mocks.dart
+*.gr.dart
+
+# Coverage
+coverage/
+*.lcov
+
+# Logs
+*.log
+logs/
+
+# OS generated files
+Thumbs.db
+*.tmp
+*~
+

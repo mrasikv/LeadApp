@@ -1,0 +1,224 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isSuperAdmin() {
+      return isAuthenticated() && 
+             request.auth.token.role == 'super_admin';
+    }
+    
+    function isCompanyAdmin(companyId) {
+      return isAuthenticated() && 
+             request.auth.token.companyId == companyId &&
+             request.auth.token.role == 'company_admin';
+    }
+    
+    function belongsToCompany(companyId) {
+      return isAuthenticated() && 
+             request.auth.token.companyId == companyId;
+    }
+    
+    function hasPermission(permission) {
+      return isAuthenticated() && 
+             request.auth.token.permissions != null &&
+             permission in request.auth.token.permissions;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isOwnerOrCompanyAdmin(userId, companyId) {
+      return isOwner(userId) || isCompanyAdmin(companyId);
+    }
+    
+    // Companies Collection
+    match /companies/{companyId} {
+      allow read: if isSuperAdmin() || belongsToCompany(companyId);
+      allow create: if isSuperAdmin();
+      allow update: if isSuperAdmin() || isCompanyAdmin(companyId);
+      allow delete: if isSuperAdmin();
+      
+      // Ensure data isolation
+      allow read, write: if request.resource.data.companyId == companyId;
+    }
+    
+    // Users Collection
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (
+        isSuperAdmin() ||
+        belongsToCompany(resource.data.companyId) ||
+        isOwner(userId)
+      );
+      
+      allow create: if isSuperAdmin() || 
+                      (isCompanyAdmin(request.resource.data.companyId) && 
+                       hasPermission('manage_users'));
+      
+      allow update: if isSuperAdmin() || 
+                      isCompanyAdmin(resource.data.companyId) ||
+                      isOwner(userId);
+      
+      allow delete: if isSuperAdmin() || 
+                      (isCompanyAdmin(resource.data.companyId) && 
+                       hasPermission('manage_users'));
+    }
+    
+    // Roles Collection
+    match /roles/{roleId} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin() || 
+                     (isCompanyAdmin(request.resource.data.companyId) &&
+                      hasPermission('manage_users'));
+    }
+    
+    // Departments Collection
+    match /departments/{departmentId} {
+      allow read: if isAuthenticated() && 
+                    (isSuperAdmin() || belongsToCompany(resource.data.companyId));
+      
+      allow create, update: if isSuperAdmin() || 
+                              (isCompanyAdmin(request.resource.data.companyId) &&
+                               hasPermission('manage_departments'));
+      
+      allow delete: if isSuperAdmin() || 
+                      (isCompanyAdmin(resource.data.companyId) &&
+                       hasPermission('manage_departments'));
+    }
+    
+    // Lead Statuses Collection
+    match /lead_statuses/{statusId} {
+      allow read: if isAuthenticated() && 
+                    (isSuperAdmin() || belongsToCompany(resource.data.companyId));
+      
+      allow write: if isSuperAdmin() || 
+                     (isCompanyAdmin(request.resource.data.companyId) &&
+                      hasPermission('manage_statuses'));
+    }
+    
+    // Dynamic Forms Collection
+    match /dynamic_forms/{formId} {
+      allow read: if isAuthenticated() && 
+                    (isSuperAdmin() || belongsToCompany(resource.data.companyId));
+      
+      allow write: if isSuperAdmin() || 
+                     (isCompanyAdmin(request.resource.data.companyId) &&
+                      hasPermission('manage_forms'));
+    }
+    
+    // Leads Collection (Core Business Logic)
+    match /leads/{leadId} {
+      allow read: if isAuthenticated() && (
+        isSuperAdmin() ||
+        belongsToCompany(resource.data.companyId) &&
+        (hasPermission('view_all_leads') || 
+         hasPermission('view_leads') ||
+         resource.data.assignedTo == request.auth.uid ||
+         resource.data.createdBy == request.auth.uid)
+      );
+      
+      allow create: if isAuthenticated() && 
+                      belongsToCompany(request.resource.data.companyId) &&
+                      hasPermission('create_leads') &&
+                      request.resource.data.companyId == request.auth.token.companyId;
+      
+      allow update: if isAuthenticated() && 
+                      belongsToCompany(resource.data.companyId) &&
+                      (hasPermission('edit_leads') ||
+                       (hasPermission('edit_own_leads') && 
+                        resource.data.assignedTo == request.auth.uid));
+      
+      allow delete: if isSuperAdmin() || 
+                      (isCompanyAdmin(resource.data.companyId) &&
+                       hasPermission('delete_leads'));
+    }
+    
+    // Activities Collection
+    match /activities/{activityId} {
+      allow read: if isAuthenticated() && 
+                    (isSuperAdmin() || 
+                     belongsToCompany(resource.data.companyId));
+      
+      allow create: if isAuthenticated() && 
+                      belongsToCompany(request.resource.data.companyId) &&
+                      request.resource.data.companyId == request.auth.token.companyId;
+      
+      // Activities are immutable once created
+      allow update, delete: if false;
+    }
+    
+    // Notes Collection
+    match /notes/{noteId} {
+      allow read: if isAuthenticated() && 
+                    (isSuperAdmin() || 
+                     belongsToCompany(resource.data.companyId));
+      
+      allow create: if isAuthenticated() && 
+                      belongsToCompany(request.resource.data.companyId);
+      
+      allow update: if isOwner(resource.data.createdBy);
+      allow delete: if isOwner(resource.data.createdBy) || 
+                      isCompanyAdmin(resource.data.companyId);
+    }
+    
+    // Call Logs Collection
+    match /call_logs/{callId} {
+      allow read: if isAuthenticated() && 
+                    (isSuperAdmin() || 
+                     belongsToCompany(resource.data.companyId));
+      
+      allow create: if isAuthenticated() && 
+                      belongsToCompany(request.resource.data.companyId);
+      
+      allow update, delete: if false; // Immutable
+    }
+    
+    // Targets Collection
+    match /targets/{targetId} {
+      allow read: if isAuthenticated() && 
+                    (isSuperAdmin() || 
+                     belongsToCompany(resource.data.companyId));
+      
+      allow write: if isSuperAdmin() || 
+                     (isCompanyAdmin(request.resource.data.companyId) &&
+                      hasPermission('manage_targets'));
+    }
+    
+    // Tickets/Deals Collection
+    match /tickets/{ticketId} {
+      allow read: if isAuthenticated() && 
+                    (isSuperAdmin() || 
+                     belongsToCompany(resource.data.companyId));
+      
+      allow create: if isAuthenticated() && 
+                      belongsToCompany(request.resource.data.companyId) &&
+                      hasPermission('create_leads');
+      
+      allow update: if isAuthenticated() && 
+                      belongsToCompany(resource.data.companyId) &&
+                      hasPermission('edit_leads');
+      
+      allow delete: if isSuperAdmin() || isCompanyAdmin(resource.data.companyId);
+    }
+    
+    // Audit Logs Collection
+    match /audit_logs/{logId} {
+      allow read: if isSuperAdmin() || 
+                    (isCompanyAdmin(resource.data.companyId) &&
+                     hasPermission('view_reports'));
+      
+      allow create: if isAuthenticated(); // System creates these
+      allow update, delete: if false; // Immutable
+    }
+    
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "flutter": {
+    "platforms": {
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "leadapp-890b6",
+          "configurations": {
+            "android": "1:82035476438:android:622d04bb251ee53beec677",
+            "ios": "1:82035476438:ios:655288f47d89b444eec677",
+            "web": "1:82035476438:web:78ff34ecfc74e4b0eec677"
+          }
+        }
+      }
+    }
+  },
+  "firestore": {
+    "database": "(default)",
+    "location": "asia-south1",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  }
+}
