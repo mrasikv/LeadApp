@@ -1,13 +1,667 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
+import '../../../../core/constants/app_colors.dart';
+import '../../../../core/di/injection_container.dart';
+import '../../../../core/models/lead_model.dart';
+import '../../../../core/models/project_model.dart';
+import '../../../auth/presentation/bloc/auth_bloc.dart';
+import '../../../auth/presentation/bloc/auth_state.dart';
+import '../../../projects/presentation/bloc/project_bloc.dart';
+import '../../../projects/presentation/bloc/project_event.dart';
+import '../../../projects/presentation/bloc/project_state.dart';
+import '../bloc/lead_bloc.dart';
+import '../bloc/lead_event.dart';
+import '../bloc/lead_state.dart';
 
-class CreateLeadPage extends StatelessWidget {
-  const CreateLeadPage({super.key});
+class CreateLeadPage extends StatefulWidget {
+  final Lead? lead; // For editing existing lead
+  final String? projectId; // Optional - for context when creating from project
+
+  const CreateLeadPage({super.key, this.lead, this.projectId});
+
+  @override
+  State<CreateLeadPage> createState() => _CreateLeadPageState();
+}
+
+class _CreateLeadPageState extends State<CreateLeadPage> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _nameController;
+  late final TextEditingController _emailController;
+  late final TextEditingController _phoneController;
+  late final TextEditingController _cityController;
+  late final TextEditingController _notesController;
+  late final TextEditingController _addressController;
+  String _selectedSource = 'Website';
+  String? _selectedProjectId;
+  Project? _selectedProject;
+  final Map<String, TextEditingController> _customFieldControllers = {};
+
+  final List<String> _sources = [
+    'Website',
+    'Referral',
+    'Social Media',
+    'Cold Call',
+    'Email Campaign',
+    'Trade Show',
+    'Other',
+  ];
+
+  bool get _isEditing => widget.lead != null;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.lead?.name ?? '');
+    _emailController = TextEditingController(text: widget.lead?.email ?? '');
+    _phoneController = TextEditingController(text: widget.lead?.phone ?? '');
+    _cityController = TextEditingController(text: widget.lead?.city ?? '');
+    _notesController = TextEditingController(
+        text: (widget.lead?.customFields['notes'] as String?) ?? '');
+    _addressController =
+        TextEditingController(text: widget.lead?.address ?? '');
+    if (widget.lead != null) {
+      _selectedSource = widget.lead!.source ?? 'Website';
+      _selectedProjectId = widget.lead!.projectId;
+    } else if (widget.projectId != null) {
+      _selectedProjectId = widget.projectId;
+    }
+
+    // Load projects for both creating and editing
+    final authState = context.read<AuthBloc>().state;
+    if (authState is AuthAuthenticated) {
+      context
+          .read<ProjectBloc>()
+          .add(LoadProjectsEvent(authState.user.currentCompanyId ?? ''));
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    _cityController.dispose();
+    _notesController.dispose();
+    _addressController.dispose();
+    for (final controller in _customFieldControllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  void _handleSubmit() {
+    if (!_formKey.currentState!.validate()) return;
+
+    final authState = context.read<AuthBloc>().state;
+    if (authState is! AuthAuthenticated) return;
+
+    final now = DateTime.now();
+
+    if (_isEditing) {
+      // Build custom fields from controllers
+      final customFields = Map<String, dynamic>.from(widget.lead!.customFields);
+      customFields['notes'] = _notesController.text.trim();
+      for (final entry in _customFieldControllers.entries) {
+        customFields[entry.key] = entry.value.text.trim();
+      }
+
+      final updatedLead = widget.lead!.copyWith(
+        name: _nameController.text.trim(),
+        email: _emailController.text.trim(),
+        phone: _phoneController.text.trim(),
+        city: _cityController.text.trim(),
+        customFields: customFields,
+        address: _addressController.text.trim(),
+        source: _selectedSource,
+        updatedAt: now,
+      );
+      context.read<LeadBloc>().add(UpdateLeadEvent(updatedLead));
+    } else {
+      // projectId is required for new leads
+      if (_selectedProjectId == null || _selectedProjectId!.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please select a project'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+        return;
+      }
+
+      // Build custom fields from controllers
+      final customFields = <String, dynamic>{
+        'notes': _notesController.text.trim(),
+      };
+      for (final entry in _customFieldControllers.entries) {
+        customFields[entry.key] = entry.value.text.trim();
+      }
+
+      final newLead = Lead(
+        id: '', // Will be generated by Firestore
+        companyId: authState.user.currentCompanyId ?? '',
+        projectId: _selectedProjectId!,
+        departmentId: authState.user.currentDepartmentId ?? '',
+        name: _nameController.text.trim(),
+        email: _emailController.text.trim(),
+        phone: _phoneController.text.trim(),
+        city: _cityController.text.trim(),
+        customFields: customFields,
+        address: _addressController.text.trim(),
+        source: _selectedSource,
+        statusId: '', // Will be set to default status
+        createdAt: now,
+        updatedAt: now,
+        createdBy: authState.user.id,
+      );
+      context.read<LeadBloc>().add(CreateLeadEvent(newLead));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Create Lead')),
-      body: const Center(child: Text('Create Lead Form')),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider.value(value: context.read<LeadBloc>()),
+        BlocProvider(create: (_) => sl<ProjectBloc>()),
+      ],
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(_isEditing ? 'Edit Lead' : 'Create Lead'),
+          actions: [
+            if (_isEditing)
+              IconButton(
+                icon: const Icon(Icons.delete),
+                onPressed: () => _showDeleteDialog(),
+              ),
+          ],
+        ),
+        body: BlocConsumer<LeadBloc, LeadState>(
+          listener: (context, state) {
+            if (state is LeadCreated || state is LeadUpdated) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(_isEditing
+                      ? 'Lead updated successfully'
+                      : 'Lead created successfully'),
+                  backgroundColor: AppColors.success,
+                ),
+              );
+              context.pop();
+            } else if (state is LeadError) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(state.error.message),
+                  backgroundColor: AppColors.error,
+                ),
+              );
+            }
+          },
+          builder: (context, leadState) {
+            final isLoading = leadState is LeadLoading;
+
+            return BlocBuilder<ProjectBloc, ProjectState>(
+              builder: (context, projectState) {
+                // Auto-select project if only one available (new lead)
+                if (!_isEditing &&
+                    _selectedProjectId == null &&
+                    projectState is ProjectsLoaded &&
+                    projectState.projects.length == 1) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    setState(() {
+                      _selectedProjectId = projectState.projects.first.id;
+                      _selectedProject = projectState.projects.first;
+                      // Initialize custom field controllers for new lead
+                      _initializeCustomFieldControllers(
+                          projectState.projects.first);
+                    });
+                  });
+                }
+
+                // Set selected project when editing and projects are loaded
+                if (_isEditing &&
+                    _selectedProjectId != null &&
+                    _selectedProject == null &&
+                    projectState is ProjectsLoaded) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    final project = projectState.projects
+                        .where((p) => p.id == _selectedProjectId)
+                        .firstOrNull;
+                    if (project != null) {
+                      setState(() {
+                        _selectedProject = project;
+                        // Initialize custom field controllers with existing data
+                        _initializeCustomFieldControllers(project);
+                      });
+                    }
+                  });
+                }
+
+                // Get custom fields from selected project
+                final customFields = _selectedProject?.customFields ?? [];
+
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Project Selection (only for new leads)
+                        if (!_isEditing) ...[
+                          _buildSectionHeader('Project'),
+                          const SizedBox(height: 16),
+                          _buildProjectSelector(projectState, isLoading),
+                          const SizedBox(height: 24),
+                        ],
+
+                        // Contact Information Section
+                        _buildSectionHeader('Contact Information'),
+                        const SizedBox(height: 16),
+
+                        TextFormField(
+                          controller: _nameController,
+                          enabled: !isLoading,
+                          decoration: const InputDecoration(
+                            labelText: 'Full Name *',
+                            prefixIcon: Icon(Icons.person),
+                          ),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Name is required';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+
+                        TextFormField(
+                          controller: _emailController,
+                          enabled: !isLoading,
+                          keyboardType: TextInputType.emailAddress,
+                          decoration: const InputDecoration(
+                            labelText: 'Email',
+                            prefixIcon: Icon(Icons.email),
+                          ),
+                          validator: (value) {
+                            if (value != null &&
+                                value.isNotEmpty &&
+                                !value.contains('@')) {
+                              return 'Enter a valid email';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+
+                        TextFormField(
+                          controller: _phoneController,
+                          enabled: !isLoading,
+                          keyboardType: TextInputType.phone,
+                          decoration: const InputDecoration(
+                            labelText: 'Phone *',
+                            prefixIcon: Icon(Icons.phone),
+                          ),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Phone is required';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+
+                        TextFormField(
+                          controller: _cityController,
+                          enabled: !isLoading,
+                          decoration: const InputDecoration(
+                            labelText: 'City',
+                            prefixIcon: Icon(Icons.location_city),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+
+                        // Lead Details Section
+                        _buildSectionHeader('Lead Details'),
+                        const SizedBox(height: 16),
+
+                        DropdownButtonFormField<String>(
+                          value: _selectedSource,
+                          decoration: const InputDecoration(
+                            labelText: 'Source',
+                            prefixIcon: Icon(Icons.source),
+                          ),
+                          items: _sources.map((source) {
+                            return DropdownMenuItem(
+                                value: source, child: Text(source));
+                          }).toList(),
+                          onChanged: isLoading
+                              ? null
+                              : (value) =>
+                                  setState(() => _selectedSource = value!),
+                        ),
+                        const SizedBox(height: 24),
+
+                        // Address Section
+                        _buildSectionHeader('Address'),
+                        const SizedBox(height: 16),
+
+                        TextFormField(
+                          controller: _addressController,
+                          enabled: !isLoading,
+                          maxLines: 2,
+                          decoration: const InputDecoration(
+                            labelText: 'Address',
+                            prefixIcon: Icon(Icons.location_on),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+
+                        // Custom Fields from Project
+                        if (customFields.isNotEmpty) ...[
+                          _buildSectionHeader('Custom Fields'),
+                          const SizedBox(height: 16),
+                          ...customFields.map((field) {
+                            return _buildCustomField(field, isLoading);
+                          }),
+                          const SizedBox(height: 24),
+                        ],
+
+                        // Notes Section
+                        _buildSectionHeader('Notes'),
+                        const SizedBox(height: 16),
+
+                        TextFormField(
+                          controller: _notesController,
+                          enabled: !isLoading,
+                          maxLines: 4,
+                          decoration: const InputDecoration(
+                            labelText: 'Notes',
+                            alignLabelWithHint: true,
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+
+                        // Submit Button
+                        ElevatedButton(
+                          onPressed: isLoading ? null : _handleSubmit,
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                          ),
+                          child: isLoading
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : Text(
+                                  _isEditing ? 'Update Lead' : 'Create Lead'),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  void _initializeCustomFieldControllers(Project project) {
+    // Initialize controllers for all custom fields from the project
+    for (final field in project.customFields) {
+      final fieldName = field['name'] as String;
+      if (!_customFieldControllers.containsKey(fieldName)) {
+        final existingValue =
+            widget.lead?.customFields[fieldName] as String? ?? '';
+        _customFieldControllers[fieldName] =
+            TextEditingController(text: existingValue);
+      }
+    }
+  }
+
+  Widget _buildSectionHeader(String title) {
+    return Row(
+      children: [
+        Text(
+          title,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: AppColors.primary,
+              ),
+        ),
+        const SizedBox(width: 8),
+        const Expanded(child: Divider()),
+      ],
+    );
+  }
+
+  Widget _buildProjectSelector(ProjectState projectState, bool isLoading) {
+    if (projectState is ProjectsLoaded) {
+      final projects = projectState.projects;
+
+      if (projects.isEmpty) {
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                const Icon(Icons.folder_off, size: 48, color: Colors.grey),
+                const SizedBox(height: 8),
+                Text(
+                  'No projects available',
+                  style: TextStyle(color: Colors.grey[600]),
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () => context.push('/projects/create'),
+                  child: const Text('Create a project first'),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
+      return DropdownButtonFormField<String>(
+        value: _selectedProjectId,
+        decoration: const InputDecoration(
+          labelText: 'Project *',
+          prefixIcon: Icon(Icons.folder),
+          helperText: 'Select the project for this lead',
+        ),
+        items: projects.map((project) {
+          return DropdownMenuItem(
+            value: project.id,
+            child: Row(
+              children: [
+                Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: _parseColor(project.color ?? '#2196F3'),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(child: Text(project.name)),
+              ],
+            ),
+          );
+        }).toList(),
+        onChanged: isLoading
+            ? null
+            : (value) {
+                setState(() {
+                  _selectedProjectId = value;
+                  _selectedProject = projects.firstWhere((p) => p.id == value);
+                  // Rebuild controllers for new project's custom fields
+                  _customFieldControllers.clear();
+                  _initializeCustomFieldControllers(_selectedProject!);
+                });
+              },
+        validator: (value) {
+          if (value == null || value.isEmpty) {
+            return 'Please select a project';
+          }
+          return null;
+        },
+      );
+    }
+
+    if (projectState is ProjectLoading) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    return const SizedBox.shrink();
+  }
+
+  Widget _buildCustomField(Map<String, dynamic> field, bool isLoading) {
+    final fieldName = field['name'] as String;
+    final fieldType = field['type'] as String;
+    final isRequired = field['required'] as bool? ?? false;
+
+    // Get or create controller for this field
+    if (!_customFieldControllers.containsKey(fieldName)) {
+      final existingValue = _isEditing
+          ? widget.lead?.customFields[fieldName] as String? ?? ''
+          : '';
+      _customFieldControllers[fieldName] =
+          TextEditingController(text: existingValue);
+    }
+
+    final controller = _customFieldControllers[fieldName]!;
+
+    Widget inputWidget;
+    switch (fieldType) {
+      case 'number':
+        inputWidget = TextFormField(
+          controller: controller,
+          enabled: !isLoading,
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            labelText: '${fieldName}${isRequired ? ' *' : ''}',
+            prefixIcon: const Icon(Icons.numbers),
+          ),
+          validator: isRequired
+              ? (value) {
+                  if (value == null || value.isEmpty) {
+                    return '$fieldName is required';
+                  }
+                  return null;
+                }
+              : null,
+        );
+        break;
+      case 'date':
+        inputWidget = TextFormField(
+          controller: controller,
+          enabled: !isLoading,
+          readOnly: true,
+          decoration: InputDecoration(
+            labelText: '${fieldName}${isRequired ? ' *' : ''}',
+            prefixIcon: const Icon(Icons.calendar_today),
+          ),
+          onTap: isLoading
+              ? null
+              : () async {
+                  final date = await showDatePicker(
+                    context: context,
+                    initialDate: DateTime.now(),
+                    firstDate: DateTime(2000),
+                    lastDate: DateTime(2100),
+                  );
+                  if (date != null) {
+                    controller.text = date.toIso8601String().split('T')[0];
+                  }
+                },
+          validator: isRequired
+              ? (value) {
+                  if (value == null || value.isEmpty) {
+                    return '$fieldName is required';
+                  }
+                  return null;
+                }
+              : null,
+        );
+        break;
+      case 'checkbox':
+        inputWidget = CheckboxListTile(
+          title: Text(fieldName),
+          value: controller.text == 'true',
+          enabled: !isLoading,
+          onChanged: (value) {
+            setState(() {
+              controller.text = value.toString();
+            });
+          },
+        );
+        break;
+      default: // text
+        inputWidget = TextFormField(
+          controller: controller,
+          enabled: !isLoading,
+          decoration: InputDecoration(
+            labelText: '${fieldName}${isRequired ? ' *' : ''}',
+            prefixIcon: const Icon(Icons.text_fields),
+          ),
+          validator: isRequired
+              ? (value) {
+                  if (value == null || value.isEmpty) {
+                    return '$fieldName is required';
+                  }
+                  return null;
+                }
+              : null,
+        );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: inputWidget,
+    );
+  }
+
+  Color _parseColor(String colorHex) {
+    try {
+      return Color(int.parse(colorHex.replaceFirst('#', '0xFF')));
+    } catch (_) {
+      return Colors.blue;
+    }
+  }
+
+  void _showDeleteDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Lead'),
+        content: const Text(
+            'Are you sure you want to delete this lead? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              context.read<LeadBloc>().add(DeleteLeadEvent(widget.lead!.id));
+            },
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
     );
   }
 }

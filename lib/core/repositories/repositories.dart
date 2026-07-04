@@ -1,0 +1,11 @@
+export 'company_repository.dart';
+export 'user_repository.dart';
+export 'lead_repository.dart';
+export 'lead_status_repository.dart';
+export 'call_log_repository.dart';
+export 'target_repository.dart';
+export 'department_repository.dart';
+export 'activity_repository.dart';
+export 'dynamic_form_repository.dart';
+export 'role_repository.dart';
+export 'company_invite_repository.dart';

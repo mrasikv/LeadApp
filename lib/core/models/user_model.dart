@@ -8,15 +8,12 @@ part 'user_model.g.dart';
 class User with _$User {
   const factory User({
     required String id,
-    required String companyId,
     required String email,
     required String name,
     String? phone,
     String? avatar,
-    required String roleId,
-    String? departmentId,
-    @Default([]) List<String> permissions,
     @Default(true) bool isActive,
+    @Default(false) bool isSuperAdmin, // Global super admin flag
     @NullableTimestampConverter() DateTime? lastLoginAt,
     @TimestampConverter() required DateTime createdAt,
     @TimestampConverter() required DateTime updatedAt,
@@ -26,6 +23,15 @@ class User with _$User {
     String? designation,
     String? employeeCode,
     Map<String, dynamic>? customFields,
+
+    // Current active company context (set at runtime after company switch)
+    String? currentCompanyId,
+    String? currentRoleId,
+    String? currentDepartmentId,
+    @Default([]) List<String> currentPermissions,
+
+    // List of company IDs user belongs to (for quick access)
+    @Default([]) List<String> companyIds,
   }) = _User;
 
   factory User.fromJson(Map<String, dynamic> json) => _$UserFromJson(json);

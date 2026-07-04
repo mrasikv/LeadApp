@@ -9,12 +9,15 @@ class LeadStatus with _$LeadStatus {
   const factory LeadStatus({
     required String id, // Immutable UUID
     required String companyId,
+    String? projectId, // NEW: Link to specific project (null = company-wide)
     required String name, // Can be renamed
     required String category, // 'to_do', 'in_progress', 'done'
     required String color, // Hex color code
     required int order, // Display order
     @Default(false) bool isSystemDefault,
     @Default(true) bool isActive,
+    @Default(false)
+    bool isDefault, // Default status for new leads in this project
     @Default(false) bool canDelete, // False for system defaults
 
     // Auto-transition rules

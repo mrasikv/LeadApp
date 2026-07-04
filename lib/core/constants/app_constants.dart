@@ -3,26 +3,27 @@ class AppConstants {
   // App Info
   static const String appName = 'LeadFlow Pro';
   static const String appVersion = '1.0.0';
-  
+
   // Pagination
   static const int defaultPageSize = 20;
   static const int maxPageSize = 100;
-  
+
   // Timeouts
   static const int connectionTimeout = 30000; // 30 seconds
   static const int receiveTimeout = 30000;
-  
+
   // Cache
   static const int cacheValidityHours = 24;
-  
+
   // Date Formats
   static const String dateFormat = 'dd MMM yyyy';
   static const String dateTimeFormat = 'dd MMM yyyy, hh:mm a';
   static const String timeFormat = 'hh:mm a';
-  
+
   // Firebase Collections
   static const String companiesCollection = 'companies';
   static const String usersCollection = 'users';
+  static const String userCompaniesCollection = 'user_companies';
   static const String rolesCollection = 'roles';
   static const String permissionsCollection = 'permissions';
   static const String departmentsCollection = 'departments';
@@ -35,7 +36,9 @@ class AppConstants {
   static const String ticketsCollection = 'tickets';
   static const String callLogsCollection = 'call_logs';
   static const String auditLogsCollection = 'audit_logs';
-  
+  static const String projectsCollection = 'projects';
+  static const String projectTypesCollection = 'project_types';
+
   // Default Role IDs
   static const String superAdminRoleId = 'super_admin';
   static const String companyAdminRoleId = 'company_admin';
@@ -43,12 +46,12 @@ class AppConstants {
   static const String callAgentRoleId = 'call_agent';
   static const String managerRoleId = 'manager';
   static const String fieldStaffRoleId = 'field_staff';
-  
+
   // Lead Status Categories
   static const String statusCategoryToDo = 'to_do';
   static const String statusCategoryInProgress = 'in_progress';
   static const String statusCategoryDone = 'done';
-  
+
   // Default Lead Statuses (System-wide template)
   static const List<Map<String, dynamic>> defaultLeadStatuses = [
     {
@@ -122,7 +125,7 @@ class AppConstants {
       'isSystemDefault': true,
     },
   ];
-  
+
   // Form Field Types
   static const String fieldTypeText = 'text';
   static const String fieldTypeNumber = 'number';
@@ -133,12 +136,12 @@ class AppConstants {
   static const String fieldTypePrice = 'price';
   static const String fieldTypeEmail = 'email';
   static const String fieldTypeTextarea = 'textarea';
-  
+
   // Call Types
   static const String callTypeOutgoing = 'outgoing';
   static const String callTypeIncoming = 'incoming';
   static const String callTypeMissed = 'missed';
-  
+
   // Activity Types
   static const String activityTypeStatusChange = 'status_change';
   static const String activityTypeCall = 'call';
@@ -146,12 +149,12 @@ class AppConstants {
   static const String activityTypeAssignment = 'assignment';
   static const String activityTypeCreated = 'created';
   static const String activityTypeUpdated = 'updated';
-  
+
   // Target Types
   static const String targetTypePrice = 'price';
   static const String targetTypeQuantity = 'quantity';
   static const String targetTypeHybrid = 'hybrid';
-  
+
   // Company Types
   static const List<String> companyTypes = [
     'Tour Marketing',
@@ -164,7 +167,7 @@ class AppConstants {
     'Healthcare',
     'Other',
   ];
-  
+
   // Permissions
   static const String permissionViewLeads = 'view_leads';
   static const String permissionCreateLeads = 'create_leads';
@@ -179,7 +182,7 @@ class AppConstants {
   static const String permissionManageTargets = 'manage_targets';
   static const String permissionViewAllLeads = 'view_all_leads';
   static const String permissionAssignLeads = 'assign_leads';
-  
+
   // Storage Keys
   static const String keyAccessToken = 'access_token';
   static const String keyRefreshToken = 'refresh_token';
@@ -187,7 +190,7 @@ class AppConstants {
   static const String keyCompanyId = 'company_id';
   static const String keyThemeMode = 'theme_mode';
   static const String keyLanguage = 'language';
-  
+
   // Validation
   static const int minPasswordLength = 8;
   static const int maxNameLength = 100;

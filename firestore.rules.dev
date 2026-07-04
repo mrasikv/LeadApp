@@ -1,0 +1,116 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ⚠️ DEVELOPMENT ONLY - Replace with production rules before deploying!
+    // This allows authenticated users full access for development purposes.
+    
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isSuperAdmin() {
+      // Check both custom claim and user document
+      return isAuthenticated() && (
+        request.auth.token.role == 'super_admin' ||
+        request.auth.token.isSuperAdmin == true ||
+        // Fallback: Check if user document has isSuperAdmin = true
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isSuperAdmin == true
+      );
+    }
+    
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    
+    // Companies Collection - Allow super admin or company members
+    match /companies/{companyId} {
+      allow read: if isAuthenticated();
+      allow create: if isSuperAdmin();
+      allow update: if isAuthenticated();
+      allow delete: if isSuperAdmin();
+    }
+    
+    // Users Collection - Allow reading own user doc always
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && request.auth.uid == userId || isSuperAdmin();
+      allow delete: if isSuperAdmin();
+    }
+    
+    // User Companies Collection
+    match /user_companies/{docId} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    // Roles Collection
+    match /roles/{roleId} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
+    }
+    
+    // Departments Collection
+    match /departments/{departmentId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+    
+    // Lead Statuses Collection
+    match /lead_statuses/{statusId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+    
+    // Leads Collection
+    match /leads/{leadId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+    
+    // Activities Collection
+    match /activities/{activityId} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    // Notes Collection
+    match /notes/{noteId} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    // Call Logs Collection
+    match /call_logs/{callLogId} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    // Targets Collection
+    match /targets/{targetId} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    // Tickets Collection
+    match /tickets/{ticketId} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    // Audit Logs Collection
+    match /audit_logs/{logId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+    }
+    
+    // Dynamic Forms Collection
+    match /dynamic_forms/{formId} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    // Company Invites Collection
+    match /company_invites/{inviteId} {
+      allow read, write: if isAuthenticated();
+    }
+  }
+}

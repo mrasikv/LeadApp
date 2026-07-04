@@ -9,25 +9,50 @@ class Lead with _$Lead {
   const factory Lead({
     required String id,
     required String companyId,
+    required String projectId, // NEW: Required project reference
     required String departmentId,
-    required String name,
+
+    // Contact Details - Name can be full name or split into first/last
+    required String name, // Full name for backward compatibility
+    String? firstName,
+    String? lastName,
     required String phone,
     String? email,
+    String? alternatePhone,
+
+    // Company Information
+    String? companyName,
+    String? industry,
+    String? companySize,
+    String? website,
+
+    // Address
     String? address,
     String? city,
     String? state,
     String? country,
+    String? zipCode,
 
     // Status & Assignment
     required String statusId, // References lead_statuses.id
     String? assignedTo, // User ID
     String? source, // Lead source
+    String? priority, // High, Medium, Low
+
+    // Lead Qualification
+    String? budgetRange,
+    String? purchaseTimeline,
+    @Default(false) bool isDecisionMaker,
+    String? interestLevel,
 
     // Tracking
     @NullableTimestampConverter() DateTime? lastContactedAt,
     @NullableTimestampConverter() DateTime? nextFollowUpAt,
     @Default(0) int totalCallsCount,
     @Default(0) int totalNotesCount,
+
+    // Notes
+    String? notes,
 
     // Custom form data
     required Map<String, dynamic> customFields,
